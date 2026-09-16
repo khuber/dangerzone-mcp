@@ -1,0 +1,48 @@
+[project]
+name = "dangerzone-mcp"
+version = "0.1.0"
+description = "A self-modifying MCP server example using dynamic Python tools and SDK subscriptions"
+keywords = ["mcp", "example", "dynamic-tools", "python"]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Kevin Huber" }]
+requires-python = ">=3.13"
+dependencies = [
+    "anyio>=4.15.1",
+    "filelock>=3.32.6",
+    "jsonschema>=4.20",
+    "mcp>=2.2.0,<3",
+    "pydantic>=2.13.5",
+    "referencing>=0.37.0",
+]
+
+[project.scripts]
+dangerzone-mcp = "dangerzone_mcp:main"
+
+[build-system]
+requires = ["uv_build>=0.12.12,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.6.2",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.16.7",
+    "ty>=0.0.80",
+]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "RUF100"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--cov=dangerzone_mcp --cov-branch --cov-report=term-missing --cov-fail-under=90"
+
+[tool.coverage.run]
+patch = ["subprocess"]
