@@ -50,11 +50,10 @@ class ToolRegistry:
     def __init__(self, storage_path: Path | None = None) -> None:
         self._tools: dict[str, ToolDefinition] = {}
         self._store = JsonStore(storage_path) if storage_path is not None else None
-        if self._store is not None:
+        # Validate an existing catalog up front; a missing one is created on first write.
+        if self._store is not None and self._store.path.exists():
             with self._store.locked():
-                tools = self._load()
-                if not self._store.path.exists():
-                    self._save(tools)
+                self._load()
 
     def _load(self) -> dict[str, ToolDefinition]:
         assert self._store is not None

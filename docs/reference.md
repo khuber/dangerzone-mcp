@@ -112,13 +112,15 @@ entry and uses that as the catalog directory. Linked worktrees and submodules
 have their own `.git` file, so each gets its own catalog in its root. Outside a
 repository, the starting directory is used. The directory must exist, and a
 catalog that is a symbolic link is rejected at startup so a cloned repository
-cannot point the server at a file outside the project. With `--no-persist` no
-path is computed and no file or lock is touched.
+cannot point the server at a file outside the project. Nothing is written to
+the project until the first `add_tool` call; starting the server, listing
+tools, and calling tools in a project with no catalog leave its directory as it
+was. With `--no-persist` no path is computed and no file or lock is touched.
 
 ### Writes and locking
 
-Each add, edit, or remove takes the `dangerzone.tools.json.lock` file lock (5
-second timeout), re-reads the catalog, applies the change, writes a temporary
+Each add, edit, or remove takes the catalog's file lock (5 second timeout),
+re-reads the catalog, applies the change, writes a temporary
 file in the same directory, flushes and fsyncs it, and renames it over the
 catalog. Reads for `tools/list` and `tools/call` take the same lock and re-read
 the file, so a change made by another process is visible on the next request
@@ -128,13 +130,21 @@ reports the error as a tool result, and sends no notification.
 Replacing an existing catalog preserves its permission bits. A newly created
 catalog is readable and writable only by its owner (`0600`).
 
+The lock file lives outside the project, under `$XDG_CACHE_HOME/dangerzone-mcp/`
+(default `~/.cache/dangerzone-mcp/`), named by a hash of the catalog directory's
+device and inode numbers. Every process reaching the same directory shares one
+lock, whether through a symlink, a relative path, or a different letter case on
+a case-insensitive filesystem. Processes must agree on the cache directory:
+launching two clients with different `XDG_CACHE_HOME` values against one
+project gives each its own lock. The lock file is never removed; it is empty
+and safe to delete when no server is running.
+
 ### Git ignore rules
 
-The lock sidecar stays next to the catalog. In a consuming project, ignore it
-along with the temporary files:
+In a consuming project, ignore the temporary files the atomic write leaves
+behind if a write is interrupted:
 
 ```gitignore
-dangerzone.tools.json.lock
 .dangerzone.tools.json.*.tmp
 ```
 

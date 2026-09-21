@@ -11,7 +11,7 @@ import pytest
 from mcp import Client
 from mcp.client.subscriptions import ToolsListChanged
 
-from dangerzone_mcp.persistence import FILENAME, JsonStore, project_storage_path
+from dangerzone_mcp.persistence import FILENAME, JsonStore, lock_path, project_storage_path
 from dangerzone_mcp.registry import PROTECTED_NAMES, ToolRegistry
 from dangerzone_mcp.server import create_server
 from tests.helpers import COMPLEX_SOURCE, definition, error_text, stdio_target
@@ -74,10 +74,32 @@ def test_nonexistent_project_rejected(tmp_path: Path) -> None:
         project_storage_path(tmp_path / "missing")
 
 
+def test_startup_and_reads_create_nothing_in_project(tmp_path: Path, cache_home: Path) -> None:
+    project = tmp_path / "project"
+    project.mkdir()
+    path = project / FILENAME
+    registry = ToolRegistry(path)
+    assert registry.list_tools() == []
+    with pytest.raises(KeyError):
+        registry.get("greet")
+    assert list(project.iterdir()) == []
+    lock = lock_path(path)
+    assert lock.is_relative_to(cache_home)
+    assert lock.exists()
+    (tmp_path / "other").mkdir()
+    assert lock_path(tmp_path / "other" / FILENAME) != lock
+    (tmp_path / "alias").symlink_to(project)
+    assert lock_path(tmp_path / "alias" / FILENAME) == lock
+    assert lock_path(tmp_path / "other" / ".." / "project" / FILENAME) == lock
+    registry.add(definition())
+    assert sorted(project.iterdir()) == [path]
+    assert [tool.name for tool in ToolRegistry(path).list_tools()] == ["greet"]
+
+
 def test_persistence_lifecycle_and_shared_writers(tmp_path: Path) -> None:
     path = tmp_path / FILENAME
     first = ToolRegistry(path)
-    assert json.loads(path.read_text()) == {"version": 1, "tools": []}
+    assert not path.exists()
     second = ToolRegistry(path)
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
@@ -101,10 +123,9 @@ def test_persistence_lifecycle_and_shared_writers(tmp_path: Path) -> None:
 def test_catalog_mutations_preserve_permissions(tmp_path: Path, mode: int) -> None:
     path = tmp_path / FILENAME
     registry = ToolRegistry(path)
+    registry.add(definition())
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
     path.chmod(mode)
-    registry.add(definition())
-    assert stat.S_IMODE(path.stat().st_mode) == mode
     registry.edit(definition(source="def main(a): return 2"))
     assert stat.S_IMODE(path.stat().st_mode) == mode
     registry.remove("greet")
