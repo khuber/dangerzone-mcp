@@ -86,7 +86,13 @@ def test_startup_and_reads_create_nothing_in_project(tmp_path: Path, cache_home:
     lock = lock_path(path)
     assert lock.is_relative_to(cache_home)
     assert lock.exists()
+    (tmp_path / "other").mkdir()
     assert lock_path(tmp_path / "other" / FILENAME) != lock
+    (tmp_path / "alias").symlink_to(project)
+    assert lock_path(tmp_path / "alias" / FILENAME) == lock
+    assert lock_path(tmp_path / "other" / ".." / "project" / FILENAME) == lock
+    upper = Path(str(project).upper())  # Same directory only on a case-insensitive volume.
+    assert (lock_path(upper / FILENAME) == lock) == (upper.exists() and upper.samefile(project))
     registry.add(definition())
     assert sorted(project.iterdir()) == [path]
     assert [tool.name for tool in ToolRegistry(path).list_tools()] == ["greet"]

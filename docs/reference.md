@@ -131,10 +131,13 @@ Replacing an existing catalog preserves its permission bits. A newly created
 catalog is readable and writable only by its owner (`0600`).
 
 The lock file lives outside the project, under `$XDG_CACHE_HOME/dangerzone-mcp/`
-(default `~/.cache/dangerzone-mcp/`), named by the SHA-256 of the catalog's
-absolute path. Every process using the same catalog path shares one lock. The
-lock file is never removed; it is empty and safe to delete when no server is
-running.
+(default `~/.cache/dangerzone-mcp/`), named by a hash of the catalog directory's
+device and inode numbers. Every process reaching the same directory shares one
+lock, whether through a symlink, a relative path, or a different letter case on
+a case-insensitive filesystem. Processes must agree on the cache directory:
+launching two clients with different `XDG_CACHE_HOME` values against one
+project gives each its own lock. The lock file is never removed; it is empty
+and safe to delete when no server is running.
 
 ### Git ignore rules
 

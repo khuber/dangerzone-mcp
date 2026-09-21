@@ -25,9 +25,14 @@ def project_storage_path(directory: Path) -> Path:
 
 
 def lock_path(catalog: Path) -> Path:
-    """Place the lock for a catalog in the user's cache directory, not the project."""
+    """Place the lock for a catalog in the user's cache directory, not the project.
+
+    The lock is keyed by the identity of the catalog's directory (device and inode),
+    so symlinks, ``..`` segments, and case variants of one project share one lock.
+    """
     cache_home = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
-    digest = hashlib.sha256(os.fsencode(catalog)).hexdigest()
+    info = catalog.absolute().parent.stat()
+    digest = hashlib.sha256(f"{info.st_dev}:{info.st_ino}:{catalog.name}".encode()).hexdigest()
     return Path(cache_home) / "dangerzone-mcp" / f"{digest}.lock"
 
 
