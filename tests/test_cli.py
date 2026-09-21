@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 from mcp import Client
 
-from dangerzone_mcp.persistence import FILENAME
+from dangerzone_mcp.persistence import FILENAME, lock_path
 from dangerzone_mcp.registry import PROTECTED_NAMES
 from tests.helpers import COMPLEX_SOURCE, definition, stdio_target
 
@@ -68,4 +68,4 @@ async def test_no_persist_ignores_catalog_and_does_not_save(
         assert not path.exists()
     else:
         assert path.read_text() == existing_catalog
-    assert not path.with_suffix(".json.lock").exists()
+    assert not lock_path(path).exists()

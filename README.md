@@ -85,8 +85,9 @@ updates, and troubleshooting.
 Tools survive restarts in a project-local `dangerzone.tools.json`. The server
 uses the containing Git root, or the starting directory outside Git. Clients
 start it in the project directory; `--project-dir PATH` overrides the starting
-point. Add `--no-persist` to the server command to keep tools in memory for one
-process.
+point. The file is created by the first `add_tool` call, so projects where you
+never write a tool stay untouched. Add `--no-persist` to the server command to
+keep tools in memory for one process.
 
 Keep personal catalogs out of Git, or deliberately commit reviewed tools to
 share them. See the [catalog reference](docs/reference.md#catalog-file) for the
