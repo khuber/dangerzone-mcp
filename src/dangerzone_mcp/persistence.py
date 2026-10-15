@@ -30,10 +30,10 @@ def lock_path(catalog: Path) -> Path:
     The lock is keyed by the identity of the catalog's directory (device and inode),
     so symlinks, ``..`` segments, and case variants of one project share one lock.
     """
-    cache_home = os.environ.get("XDG_CACHE_HOME") or str(Path.home() / ".cache")
+    cache_home = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")
     info = catalog.absolute().parent.stat()
     digest = hashlib.sha256(f"{info.st_dev}:{info.st_ino}:{catalog.name}".encode()).hexdigest()
-    return Path(cache_home) / "dangerzone-mcp" / f"{digest}.lock"
+    return cache_home / "dangerzone-mcp" / f"{digest}.lock"
 
 
 class JsonStore:
@@ -43,13 +43,11 @@ class JsonStore:
         if path.is_symlink():
             raise ValueError(f"Tool catalog must not be a symlink: {path}")
         self.path = path.absolute()
-        self.lock_path = lock_path(self.path)
-        self._lock = FileLock(str(self.lock_path), timeout=5)
+        self._lock = FileLock(lock_path(self.path), timeout=5)
 
     @contextmanager
     def locked(self) -> Generator[None]:
         """Hold an OS-backed lock shared by every writer of this catalog."""
-        self.lock_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             with self._lock:
                 yield

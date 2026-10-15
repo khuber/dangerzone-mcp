@@ -53,7 +53,7 @@ def test_project_discovery_outside_git(tmp_path: Path) -> None:
 
 
 @pytest.mark.parametrize("target_exists", [False, True])
-def test_symlinked_catalog_rejected(tmp_path: Path, target_exists: bool) -> None:
+def test_symlinked_catalog_rejected(tmp_path: Path, cache_home: Path, target_exists: bool) -> None:
     target = tmp_path / "outside" / FILENAME
     if target_exists:
         target.parent.mkdir()
@@ -66,7 +66,7 @@ def test_symlinked_catalog_rejected(tmp_path: Path, target_exists: bool) -> None
     with pytest.raises(ValueError, match="symlink"):
         ToolRegistry(project / FILENAME)
     assert target.exists() == target_exists
-    assert not (target.parent / f"{FILENAME}.lock").exists()
+    assert not any(cache_home.iterdir())
 
 
 def test_nonexistent_project_rejected(tmp_path: Path) -> None:
