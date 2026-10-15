@@ -4,7 +4,7 @@ import hashlib
 import os
 import stat
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager, suppress
 from pathlib import Path
 
@@ -47,7 +47,7 @@ class JsonStore:
         self._lock = FileLock(str(self.lock_path), timeout=5)
 
     @contextmanager
-    def locked(self) -> Iterator[None]:
+    def locked(self) -> Generator[None]:
         """Hold an OS-backed lock shared by every writer of this catalog."""
         self.lock_path.parent.mkdir(parents=True, exist_ok=True)
         try:
