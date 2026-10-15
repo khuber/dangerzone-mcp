@@ -9,6 +9,7 @@ import signal
 import sys
 import tempfile
 from contextlib import suppress
+from functools import partial
 from importlib.metadata import version as package_version
 from pathlib import Path
 from typing import Any
@@ -80,6 +81,7 @@ CUSTOM_RESULT_SCHEMA = {
     "required": ["result"],
     "additionalProperties": False,
 }
+STATUSES = {"add_tool": "added", "edit_tool": "edited", "remove_tool": "removed"}
 BUILTINS = [
     Tool(
         name="add_tool",
@@ -144,32 +146,29 @@ async def execute(
             ).encode()
         )
         incoming.seek(0)
-        try:
-            with anyio.fail_after(timeout) as deadline:
-                with anyio.CancelScope(shield=True):  # Never leave a spawned worker unreaped.
-                    process = await asyncio.create_subprocess_exec(
-                        sys.executable,
-                        "-I",
-                        str(worker),
-                        stdin=incoming,
-                        stdout=outgoing,
-                        stderr=errors,
-                        start_new_session=os.name == "posix",
-                    )
-                try:
+        with anyio.move_on_after(timeout) as deadline:
+            with anyio.CancelScope(shield=True):  # Never leave a spawned worker unreaped.
+                process = await asyncio.create_subprocess_exec(
+                    sys.executable,
+                    "-I",
+                    str(worker),
+                    stdin=incoming,
+                    stdout=outgoing,
+                    stderr=errors,
+                    start_new_session=os.name == "posix",
+                )
+            try:
+                await process.wait()
+            finally:
+                with suppress(ProcessLookupError):
+                    if os.name == "posix":
+                        os.killpg(process.pid, signal.SIGKILL)
+                    elif process.returncode is None:
+                        process.kill()
+                with anyio.CancelScope(shield=True):
                     await process.wait()
-                finally:
-                    with suppress(ProcessLookupError):
-                        if os.name == "posix":
-                            os.killpg(process.pid, signal.SIGKILL)
-                        elif process.returncode is None:
-                            process.kill()
-                    with anyio.CancelScope(shield=True):
-                        await process.wait()
-        except TimeoutError as exc:
-            if deadline.cancel_called:
-                raise ToolExecutionTimeout from exc
-            raise
+        if deadline.cancelled_caught:
+            raise ToolExecutionTimeout(f"Tool execution exceeded {timeout:g} seconds")
         outgoing.seek(0)
         errors.seek(0)
         output, diagnostics = outgoing.read(), errors.read()
@@ -229,24 +228,20 @@ def create_server(*, timeout: float = 30.0, storage_path: Path | None = None) ->
         arguments = params.arguments or {}
         try:
             if params.name in PROTECTED_NAMES:
+                if params.name == "remove_tool":
+                    name = RemoveToolInput.model_validate(arguments).name
+                    change = partial(registry.remove, name)
+                else:
+                    request = ToolDefinition.model_validate(arguments)
+                    name = request.name
+                    method = registry.add if params.name == "add_tool" else registry.edit
+                    change = partial(method, request)
                 async with lock:
-                    if params.name in {"add_tool", "edit_tool"}:
-                        request = ToolDefinition.model_validate(arguments)
-                        if params.name == "add_tool":
-                            await anyio.to_thread.run_sync(registry.add, request)
-                            status = "added"
-                        else:
-                            await anyio.to_thread.run_sync(registry.edit, request)
-                            status = "edited"
-                        name = request.name
-                    else:
-                        name = RemoveToolInput.model_validate(arguments).name
-                        await anyio.to_thread.run_sync(registry.remove, name)
-                        status = "removed"
+                    await anyio.to_thread.run_sync(change)
                     await bus.publish(ToolsListChanged())
                     if ctx.session.protocol_version not in MODERN_PROTOCOL_VERSIONS:
                         await ctx.session.send_tool_list_changed()
-                data = {"name": name, "status": status}
+                data = {"name": name, "status": STATUSES[params.name]}
             else:
                 try:
                     definition = await anyio.to_thread.run_sync(registry.get, params.name)
@@ -261,11 +256,8 @@ def create_server(*, timeout: float = 30.0, storage_path: Path | None = None) ->
             # rather than as a crash in the transport writer.
             result.model_dump_json()
             return result
-        except ToolExecutionTimeout:
-            message = f"Tool execution exceeded {timeout:g} seconds"
         except (ValueError, OSError) as exc:
-            message = str(exc)
-        message = message.encode("utf-8", errors="backslashreplace").decode("utf-8")
+            message = str(exc).encode("utf-8", errors="backslashreplace").decode("utf-8")
         return CallToolResult(content=[TextContent(type="text", text=message)], is_error=True)
 
     return DynamicToolServer(

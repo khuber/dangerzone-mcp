@@ -18,6 +18,21 @@ from dangerzone_mcp.worker import main
 from tests.helpers import definition, error_text
 
 
+def test_worker_rejects_invalid_arguments_before_running_source(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = {
+        "source": "raise RuntimeError('executed')",
+        "input_schema": {"type": "object", "required": ["n"]},
+        "arguments": {},
+    }
+    outgoing = io.StringIO()
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps(request)))
+    monkeypatch.setattr("sys.stdout", outgoing)
+    main()
+    assert json.loads(outgoing.getvalue()) == {"error": "'n' is a required property"}
+
+
 @pytest.mark.parametrize(
     "source, expected",
     [

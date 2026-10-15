@@ -1,7 +1,7 @@
 """Validated custom tool definitions with optional JSON persistence."""
 
 import ast
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Literal
@@ -79,7 +79,7 @@ class ToolRegistry:
         self._store.write(catalog.model_dump_json(indent=2) + "\n")
 
     @contextmanager
-    def _access(self, *, write: bool = False) -> Iterator[dict[str, ToolDefinition]]:
+    def _access(self, *, write: bool = False) -> Generator[dict[str, ToolDefinition]]:
         if self._store is None:
             tools = self._tools.copy()
             yield tools

@@ -120,4 +120,4 @@ For implementation details and limitations, see the [reference](docs/reference.m
 For development setup and checks, see the [setup guide](docs/setup.md).
 
 Built on the [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk)
-2.2 against the 2026-07-28 spec. [MIT licensed](LICENSE).
+2.3 against the 2026-07-28 spec. [MIT licensed](LICENSE).
